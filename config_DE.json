@@ -1,4 +1,5 @@
 {
+  "_comment": "when copied to config.json this file will be read by default",
   "equity_name": "Eigenkapital",
   "equity_opening_name": "Anfangsbestand",
   "opening_transaction_text": "Anfangsbestand",

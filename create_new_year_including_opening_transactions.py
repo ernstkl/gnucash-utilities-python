@@ -159,7 +159,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create a new GnuCash file with opening transactions for a new year.")
     parser.add_argument("previous_file", help="The GnuCash file for the previous year.")
     parser.add_argument("new_file", help="The GnuCash file for the new year.")
-    parser.add_argument("--config-file", default=None, help="Path to JSON config file (contains equity_name, equity_opening_name, opening_transaction_text, currency).")
+    parser.add_argument("--config-file", default=None, help="Path to JSON config file (contains equity_name, equity_opening_name, opening_transaction_text, currency). Default is config.json.")
     parser.add_argument("--opening-date", default=None, help="The date for the opening transaction in ISO 8601 format (YYYY-MM-DD). If omitted, defaults to Jan 1 of the current year.")
 
     args = parser.parse_args()
@@ -170,9 +170,9 @@ if __name__ == "__main__":
     else:
         opening_date = datetime.fromisoformat(args.opening_date)
 
-    # Resolve config file path: if not provided, use defaults.json located next to this script
+    # Resolve config file path: if not provided, use config.json located next to this script
     if args.config_file is None:
-        config_path = os.path.join(os.path.dirname(__file__), 'defaults.json')
+        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
     else:
         config_path = args.config_file
 
