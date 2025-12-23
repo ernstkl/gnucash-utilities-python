@@ -3,13 +3,14 @@
 import argparse
 import shutil
 import gnucash
-from gnucash.gnucash_core_c import ACCT_TYPE_EQUITY, ACCT_TYPE_ASSET
+from gnucash import ACCT_TYPE_LIABILITY
+from gnucash.gnucash_core_c import ACCT_TYPE_EQUITY, ACCT_TYPE_ASSET, ACCT_TYPE_RECEIVABLE
 from loguru import logger
 from datetime import datetime
 
-# Account types of top-level accounts whose decendents are to be
-# considered for creating opening transactions
-ACCOUNT_TYPES_TO_INCLUDE = [ACCT_TYPE_ASSET]
+# Account types of top-level accounts whose descendants are to be
+# considered for creating opening transactions (no matter what their individual account type is)
+ACCOUNT_TYPES_TO_INCLUDE = [ACCT_TYPE_ASSET, ACCT_TYPE_LIABILITY, ACCT_TYPE_RECEIVABLE]
 
 def get_account_balances(book, account_types):
     """Get account balances.
