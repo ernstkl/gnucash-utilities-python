@@ -1,4 +1,10 @@
-"""Create gnucash file for new year including opening transactions based on previous year's file."""
+"""Create gnucash file for new year including opening transactions based on previous year's file.
+
+Method:
+- the previous year's file is copied on filesystem level
+- all transactions are deleted from the copied file
+- opening transactions are added, with amounts taken from the previous year's file
+"""
 
 import argparse
 import shutil
@@ -6,8 +12,10 @@ import gnucash
 from gnucash.gnucash_core_c import ACCT_TYPE_EQUITY, ACCT_TYPE_ASSET, ACCT_TYPE_LIABILITY
 from loguru import logger
 from datetime import datetime
+import json
+import os
 
-# Account types of top-level accounts whose decendents are to be
+# Account types of top-level accounts whose descendants are to be
 # considered for creating opening transactions
 ACCOUNT_TYPES_TO_INCLUDE = [ACCT_TYPE_ASSET, ACCT_TYPE_LIABILITY]
 
@@ -46,18 +54,26 @@ def prepare_new_year_file(previous_file, new_file):
         for split in splits:
             transaction = split.parent
             if transaction == None:
-                continue;
+                logger.warning(f"Split without parent transaction found in account {account.get_full_name()}")
+                continue
             transaction.Destroy()
 
     return session_new
 
-def main(previous_file, new_file, equity_name, equity_opening_name, opening_transaction_text, opening_date):
+def main(previous_file, new_file, opening_date, config):
+    """Create and populate new gnucash file."""
+
+    equity_name = config['equity_name']
+    equity_opening_name = config['equity_opening_name']
+    opening_transaction_text = config['opening_transaction_text']
+    currency = config['currency']
+
     # Prepare the new year's file
-    logger.info(f"copying previous year's file {previous_file} to new file {new_file}")
+    logger.info(f"Copying previous year's file {previous_file} to new file {new_file}")
     session_new = prepare_new_year_file(previous_file, new_file)
 
     # Open the previous year's file in read-only mode
-    logger.info(f"reading balances from previous year's file")
+    logger.info(f"Reading balances from previous year's file")
     session_prev = gnucash.Session(previous_file, gnucash.SessionOpenMode.SESSION_READ_ONLY)
     book_prev = session_prev.book
     account_balances = get_account_balances(book_prev, ACCOUNT_TYPES_TO_INCLUDE)
@@ -65,17 +81,17 @@ def main(previous_file, new_file, equity_name, equity_opening_name, opening_tran
     # Open the existing new year's file in read-write mode
     book_new = session_new.book
 
-    # Get the commodity (e.g., EUR)
-    transaction_currency = book_new.get_table().lookup("CURRENCY", "USD")
-    price_db = book_new.get_price_db();
+    # Get the commodity (e.g., EUR) from provided currency
+    transaction_currency = book_new.get_table().lookup("CURRENCY", currency)
+    price_db = book_new.get_price_db()
 
     # Create or retrieve the Opening Balances account
-    logger.info(f"preparing opening balances counter account in new year's file")
+    logger.info(f"Preparing opening balances counter account in new year's file")
     root_account = book_new.get_root_account()
-    logger.info(f"looking up --{equity_name}--")
+    logger.info(f"Looking up --{equity_name}--")
     equity_placeholder_account = root_account.lookup_by_full_name(equity_name)
     if not equity_placeholder_account:
-        logger.info(f"creating account: {equity_name}")
+        logger.info(f"Creating account: {equity_name}")
         equity_placeholder_account = gnucash.Account(book_new)
         equity_placeholder_account.SetName(equity_name)
         equity_placeholder_account.SetType(ACCT_TYPE_EQUITY)
@@ -83,10 +99,10 @@ def main(previous_file, new_file, equity_name, equity_opening_name, opening_tran
         root_account.append_child(equity_placeholder_account)
 
     equity_opening_full_name = equity_name + "." + equity_opening_name
-    logger.info(f"looking up --{equity_opening_full_name}--")
+    logger.info(f"Looking up --{equity_opening_full_name}--")
     equity_account = root_account.lookup_by_full_name(equity_opening_full_name)
     if not equity_account:
-        logger.info(f"creating account: {equity_opening_name}")
+        logger.info(f"Creating account: {equity_opening_name}")
         equity_account = gnucash.Account(book_new)
         equity_account.SetName(equity_opening_name)
         equity_account.SetType(ACCT_TYPE_EQUITY)
@@ -96,7 +112,7 @@ def main(previous_file, new_file, equity_name, equity_opening_name, opening_tran
     # Create opening transactions in the new year's book for specified account types
     for account_name, balance in account_balances.items():
         if balance != 0:
-            logger.info(f"creating opening balance for account {account_name}")
+            logger.info(f"Creating opening transaction for account {account_name}, amount: {balance}")
             account = book_new.get_root_account().lookup_by_full_name(account_name)
             if not account:
                 # Create account if it does not exist in the new book
@@ -117,7 +133,7 @@ def main(previous_file, new_file, equity_name, equity_opening_name, opening_tran
             split_equity.SetAccount(equity_account)
 
             asset_commodity = split_asset.GetAccount().GetCommodity()
-            equity_commodity = split_equity.GetAccount().GetCommodity();
+            equity_commodity = split_equity.GetAccount().GetCommodity()
 
             equity_value = balance if (asset_commodity == equity_commodity) else price_db.convert_balance_nearest_price_t64(balance, asset_commodity, equity_commodity, opening_date)
 
@@ -134,20 +150,34 @@ def main(previous_file, new_file, equity_name, equity_opening_name, opening_tran
             transaction.CommitEdit()
 
     # Save the new book
-    logger.info(f"saving new year's file")
+    logger.info(f"Saving new year's file")
     session_new.save()
     session_new.end()
     session_prev.end()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create opening transactions for a new year in GnuCash.")
+    parser = argparse.ArgumentParser(description="Create a new GnuCash file with opening transactions for a new year.")
     parser.add_argument("previous_file", help="The GnuCash file for the previous year.")
     parser.add_argument("new_file", help="The GnuCash file for the new year.")
-    parser.add_argument("--equity_name", default="Equity", help="The name of top level equity account (placeholder).")
-    parser.add_argument("--equity_opening_name", default="Opening balance", help="The name of the equity opening account.")
-    parser.add_argument("--opening_transaction_text", default="Opening balance", help="The text for the opening transaction.")
-    parser.add_argument("--opening_date", default="2025-01-01", help="The date for the opening transaction in ISO 8601 format (YYYY-MM-DD).")
+    parser.add_argument("--config-file", default=None, help="Path to JSON config file (contains equity_name, equity_opening_name, opening_transaction_text, currency).")
+    parser.add_argument("--opening-date", default=None, help="The date for the opening transaction in ISO 8601 format (YYYY-MM-DD). If omitted, defaults to Jan 1 of the current year.")
 
     args = parser.parse_args()
-    opening_date = datetime.fromisoformat(args.opening_date)
-    main(args.previous_file, args.new_file, args.equity_name, args.equity_opening_name, args.opening_transaction_text, opening_date)
+
+    # Determine opening_date: use provided ISO date or default to Jan 1 of current year
+    if args.opening_date is None:
+        opening_date = datetime(datetime.now().year, 1, 1)
+    else:
+        opening_date = datetime.fromisoformat(args.opening_date)
+
+    # Resolve config file path: if not provided, use defaults.json located next to this script
+    if args.config_file is None:
+        config_path = os.path.join(os.path.dirname(__file__), 'defaults.json')
+    else:
+        config_path = args.config_file
+
+    # Load config JSON from resolved path
+    with open(config_path, 'r', encoding='utf-8') as _f:
+        config = json.load(_f)
+
+    main(args.previous_file, args.new_file, opening_date, config)
