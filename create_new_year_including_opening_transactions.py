@@ -39,13 +39,16 @@ def prepare_new_year_file(previous_file, new_file):
     """Create the new year's file by copying the previous year's file and deleting all transactions."""
 
     # Copy the previous year's file
+    logger.debug('copying gnucash file')
     shutil.copyfile(previous_file, new_file)
 
     # Open the new year's file with SESSION_NORMAL_OPEN flag
+    logger.debug('opening gnucash file')
     session_new = gnucash.Session(new_file, gnucash.SessionOpenMode.SESSION_NORMAL_OPEN)
     book_new = session_new.book
 
     # Delete all transactions
+    logger.debug('deleting all transactions')
     root_account = book_new.get_root_account()
     accounts = root_account.get_descendants()
 
@@ -69,7 +72,7 @@ def main(previous_file, new_file, opening_date, config):
     currency = config['currency']
 
     # Prepare the new year's file
-    logger.info(f"Copying previous year's file {previous_file} to new file {new_file}")
+    logger.info(f"Creating new year's file {new_file} from previous year's file {previous_file}")
     session_new = prepare_new_year_file(previous_file, new_file)
 
     # Open the previous year's file in read-only mode
