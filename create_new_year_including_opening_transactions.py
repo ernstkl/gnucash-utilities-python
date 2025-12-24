@@ -96,7 +96,6 @@ def main(previous_file, new_file, opening_date, config):
     equity_name = config['equity_name']
     equity_opening_name = config['equity_opening_name']
     opening_transaction_text = config['opening_transaction_text']
-    currency = config['currency']
 
     # Prepare the new year's file
     logger.info(f"Creating new year's file {new_file} from previous year's file {previous_file}.")
@@ -111,8 +110,6 @@ def main(previous_file, new_file, opening_date, config):
     # Open the existing new year's file in read-write mode
     book_new = session_new.book
 
-    # Get the commodity (e.g., EUR) from provided currency
-    transaction_currency = book_new.get_table().lookup("CURRENCY", currency)
     price_db = book_new.get_price_db()
 
     # Create or retrieve the Opening Balances account
@@ -128,28 +125,41 @@ def main(previous_file, new_file, opening_date, config):
         equity_placeholder_account.SetPlaceholder(True)
         root_account.append_child(equity_placeholder_account)
 
-    # TODO: Handle multi-currency properly by creating sub-accounts for each currency. Do that on demand in the loop below.
-    equity_opening_full_name = equity_name + "." + equity_opening_name
-    logger.info(f"Looking up --{equity_opening_full_name}--")
-    equity_account = root_account.lookup_by_full_name(equity_opening_full_name)
-    if not equity_account:
-        logger.info(f"Creating account: {equity_opening_name}")
-        equity_account = gnucash.Account(book_new)
-        equity_account.SetName(equity_opening_name)
-        equity_account.SetType(ACCT_TYPE_EQUITY)
-        equity_account.SetCommodity(transaction_currency)
-        equity_placeholder_account.append_child(equity_account)
+    logger.info(f"Looking up opening balances placeholder --{equity_name}.{equity_opening_name}--")
+    equity_opening_placeholder_account = root_account.lookup_by_full_name(
+        f"{equity_name}.{equity_opening_name}"
+    )
+    if not equity_opening_placeholder_account:
+        logger.info(f"Creating account. {equity_name}.{equity_opening_name}")
+        equity_opening_placeholder_account = gnucash.Account(book_new)
+        equity_opening_placeholder_account.SetName(equity_opening_name)
+        equity_opening_placeholder_account.SetType(ACCT_TYPE_EQUITY)
+        equity_opening_placeholder_account.SetPlaceholder(True)
+        equity_placeholder_account.append_child(equity_opening_placeholder_account)
 
     # Create opening transactions in the new year's book for specified account types
     for account_name, balance in account_balances.items():
         if balance != 0:
-            logger.info(f"Creating opening transaction for account {account_name}, amount: {balance}")
+
             account = book_new.get_root_account().lookup_by_full_name(account_name)
-            if not account:
-                # Create account if it does not exist in the new book
-                account = gnucash.Account(book_new)
-                account.SetName(account_name)
-                book_new.get_root_account().append_child(account)
+
+            # get currency of the account
+            currency = account.GetCommodity()
+            currency_name = currency.get_mnemonic()
+
+            logger.info(f"Creating opening transaction for account {account_name}, amount: {balance} {currency.get_mnemonic()}")
+
+            # prepare the opening counter account for this currency if needed
+            equity_opening_full_name = f"{equity_name}.{equity_opening_name}.{currency_name}"
+
+            equity_account = root_account.lookup_by_full_name(equity_opening_full_name)
+            if not equity_account:
+                logger.info(f"Creating account: {equity_opening_full_name}")
+                equity_account = gnucash.Account(book_new)
+                equity_account.SetName(currency_name)  # Name des Unterkontos = Währung
+                equity_account.SetType(ACCT_TYPE_EQUITY)
+                equity_account.SetCommodity(currency)
+                equity_opening_placeholder_account.append_child(equity_account)
 
             # Create opening balance transaction
             transaction = gnucash.Transaction(book_new)
@@ -176,7 +186,7 @@ def main(previous_file, new_file, opening_date, config):
 
             split_equity.SetAmount(equity_value.neg())  # Opposite value to balance the transaction
             split_equity.SetValue(equity_value.neg())
-            transaction.SetCurrency(transaction_currency)
+            transaction.SetCurrency(currency)
 
             transaction.CommitEdit()
 
