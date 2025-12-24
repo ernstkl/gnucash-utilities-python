@@ -8,6 +8,8 @@ Method:
 
 import argparse
 import shutil
+import sys
+
 import gnucash
 from gnucash.gnucash_core_c import ACCT_TYPE_EQUITY, ACCT_TYPE_ASSET, ACCT_TYPE_LIABILITY
 from loguru import logger
@@ -38,8 +40,10 @@ def get_account_balances(book, account_types):
 def prepare_new_year_file(previous_file, new_file):
     """Create the new year's file by copying the previous year's file and deleting all transactions."""
 
-    # Copy the previous year's file
-    logger.debug('copying gnucash file')
+    # Copy the previous year's file, do _not_ overwrite existing file
+    if os.path.exists(new_file):
+        raise FileExistsError(f"Target file {new_file} already exists.")
+    logger.debug('Copying gnucash file.')
     shutil.copyfile(previous_file, new_file)
 
     # Open the new year's file with SESSION_NORMAL_OPEN flag
@@ -194,4 +198,9 @@ if __name__ == "__main__":
     with open(config_path, 'r', encoding='utf-8') as _f:
         config = json.load(_f)
 
-    main(args.previous_file, args.new_file, opening_date, config)
+    try:
+        main(args.previous_file, args.new_file, opening_date, config)
+
+    except Exception as e:
+        logger.error(f"Error, terminating program: {e}")
+        sys.exit(1)
