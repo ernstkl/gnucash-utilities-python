@@ -43,12 +43,12 @@ def prepare_new_year_file(previous_file, new_file):
     shutil.copyfile(previous_file, new_file)
 
     # Open the new year's file with SESSION_NORMAL_OPEN flag
-    logger.debug('opening gnucash file')
+    logger.debug('Opening gnucash file.')
     session_new = gnucash.Session(new_file, gnucash.SessionOpenMode.SESSION_NORMAL_OPEN)
     book_new = session_new.book
 
     # Delete all transactions
-    logger.debug('deleting all transactions')
+    logger.debug('Deleting all transactions.')
     root_account = book_new.get_root_account()
     accounts = root_account.get_descendants()
 
@@ -57,14 +57,25 @@ def prepare_new_year_file(previous_file, new_file):
         for split in splits:
             transaction = split.parent
             if transaction == None:
-                logger.warning(f"Split without parent transaction found in account {account.get_full_name()}")
+                logger.warning(f"Split without parent transaction found in account {account.get_full_name()}.")
                 continue
             transaction.Destroy()
 
     return session_new
 
 def main(previous_file, new_file, opening_date, config):
-    """Create and populate new gnucash file."""
+    """Create and populate new gnucash file.
+
+    Args:
+        previous_file: Path to previous year's gnucash file.
+        new_file: Path to new year's gnucash file.
+        opening_date: Date for the opening transactions.
+        config: Configuration dictionary with keys:
+            - equity_name: Name of the equity placeholder account.
+            - equity_opening_name: Name of the equity opening balances account.
+            - opening_transaction_text: Description text for opening transactions.
+            - currency: Currency code for the transactions (e.g., "EUR").
+    """
 
     equity_name = config['equity_name']
     equity_opening_name = config['equity_opening_name']
@@ -72,11 +83,11 @@ def main(previous_file, new_file, opening_date, config):
     currency = config['currency']
 
     # Prepare the new year's file
-    logger.info(f"Creating new year's file {new_file} from previous year's file {previous_file}")
+    logger.info(f"Creating new year's file {new_file} from previous year's file {previous_file}.")
     session_new = prepare_new_year_file(previous_file, new_file)
 
     # Open the previous year's file in read-only mode
-    logger.info(f"Reading balances from previous year's file")
+    logger.info(f"Reading balances from previous year's file.")
     session_prev = gnucash.Session(previous_file, gnucash.SessionOpenMode.SESSION_READ_ONLY)
     book_prev = session_prev.book
     account_balances = get_account_balances(book_prev, ACCOUNT_TYPES_TO_INCLUDE)
@@ -89,7 +100,7 @@ def main(previous_file, new_file, opening_date, config):
     price_db = book_new.get_price_db()
 
     # Create or retrieve the Opening Balances account
-    logger.info(f"Preparing opening balances counter account in new year's file")
+    logger.info(f"Preparing opening balances counter account in new year's file.")
     root_account = book_new.get_root_account()
     logger.info(f"Looking up --{equity_name}--")
     equity_placeholder_account = root_account.lookup_by_full_name(equity_name)
