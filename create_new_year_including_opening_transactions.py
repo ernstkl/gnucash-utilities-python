@@ -130,7 +130,7 @@ def main(previous_file, new_file, opening_date, config):
         f"{equity_name}.{equity_opening_name}"
     )
     if not equity_opening_placeholder_account:
-        logger.info(f"Creating account. {equity_name}.{equity_opening_name}")
+        logger.info(f"Creating account: {equity_name}.{equity_opening_name}")
         equity_opening_placeholder_account = gnucash.Account(book_new)
         equity_opening_placeholder_account.SetName(equity_opening_name)
         equity_opening_placeholder_account.SetType(ACCT_TYPE_EQUITY)
