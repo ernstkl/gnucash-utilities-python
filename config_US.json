@@ -2,7 +2,6 @@
   "_comment": "when copied to config.json this file will be read by default",
   "equity_name": "Equity",
   "equity_opening_name": "Opening balance",
-  "opening_transaction_text": "Opening balance",
-  "currency": "USD"
+  "opening_transaction_text": "Opening balance"
 }
 
