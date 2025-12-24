@@ -154,7 +154,7 @@ def main(previous_file, new_file, opening_date, config):
 
             equity_account = root_account.lookup_by_full_name(equity_opening_full_name)
             if not equity_account:
-                logger.info(f"Creating account: {equity_opening_full_name}")
+                logger.info(f"    Creating account: {equity_opening_full_name}")
                 equity_account = gnucash.Account(book_new)
                 equity_account.SetName(currency_name)  # Name des Unterkontos = Währung
                 equity_account.SetType(ACCT_TYPE_EQUITY)
@@ -191,7 +191,7 @@ def main(previous_file, new_file, opening_date, config):
             transaction.CommitEdit()
 
     # Save the new book
-    logger.info(f"Saving new year's file")
+    logger.info(f"Saving / closing new year's file.")
     session_new.save()
     session_new.end()
     session_prev.end()
