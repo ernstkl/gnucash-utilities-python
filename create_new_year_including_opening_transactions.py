@@ -11,30 +11,42 @@ import shutil
 import sys
 
 import gnucash
-from gnucash.gnucash_core_c import ACCT_TYPE_EQUITY, ACCT_TYPE_ASSET, ACCT_TYPE_LIABILITY
+from gnucash.gnucash_core_c import ACCT_TYPE_EQUITY, ACCT_TYPE_INCOME, ACCT_TYPE_EXPENSE, ACCT_TYPE_TRADING, ACCT_TYPE_ROOT
 from loguru import logger
 from datetime import datetime
 import json
 import os
 
-# Account types of top-level accounts whose descendants are to be
-# considered for creating opening transactions
-ACCOUNT_TYPES_TO_INCLUDE = [ACCT_TYPE_ASSET, ACCT_TYPE_LIABILITY]
+# Account types which are to be excluded from creating opening transactions
+ACCOUNT_TYPES_TO_EXCLUDE = [
+    ACCT_TYPE_INCOME,
+    ACCT_TYPE_EXPENSE,
+    ACCT_TYPE_TRADING,
+    ACCT_TYPE_ROOT,
+    ACCT_TYPE_EQUITY
+]
 
-def get_account_balances(book, account_types):
+def get_account_balances(book):
     """Get account balances.
 
-    Get account balances, considering only top-level accounts of
-    specified account types, and their descendants.
+    Get account balances for all accounts with type not in the exclude list. Descendants of excluded accounts
+    are also excluded.
     """
     balances = {}
-    root_account = book.get_root_account()
-    top_level_accounts = [acc for acc in root_account.get_children() if acc.GetType() in account_types]
+    root = book.get_root_account()
 
-    for top_account in top_level_accounts:
-        for account in top_account.get_descendants():
-            if not account.GetPlaceholder():
-                balances[account.get_full_name()] = account.GetBalance()
+    def walk(account):
+        yield account
+        for child in account.get_children():
+            yield from walk(child)
+
+    for acc in walk(root):
+        if acc.GetPlaceholder():
+            continue
+        if acc.GetType() in ACCOUNT_TYPES_TO_EXCLUDE:
+            continue
+        balances[acc.get_full_name()] = acc.GetBalance()
+
     return balances
 
 def prepare_new_year_file(previous_file, new_file):
@@ -47,7 +59,7 @@ def prepare_new_year_file(previous_file, new_file):
     shutil.copyfile(previous_file, new_file)
 
     # Open the new year's file with SESSION_NORMAL_OPEN flag
-    logger.debug('Opening gnucash file.')
+    logger.debug("Opening new year's gnucash file.")
     session_new = gnucash.Session(new_file, gnucash.SessionOpenMode.SESSION_NORMAL_OPEN)
     book_new = session_new.book
 
@@ -94,7 +106,7 @@ def main(previous_file, new_file, opening_date, config):
     logger.info(f"Reading balances from previous year's file.")
     session_prev = gnucash.Session(previous_file, gnucash.SessionOpenMode.SESSION_READ_ONLY)
     book_prev = session_prev.book
-    account_balances = get_account_balances(book_prev, ACCOUNT_TYPES_TO_INCLUDE)
+    account_balances = get_account_balances(book_prev)
 
     # Open the existing new year's file in read-write mode
     book_new = session_new.book
@@ -116,6 +128,7 @@ def main(previous_file, new_file, opening_date, config):
         equity_placeholder_account.SetPlaceholder(True)
         root_account.append_child(equity_placeholder_account)
 
+    # TODO: Handle multi-currency properly by creating sub-accounts for each currency. Do that on demand in the loop below.
     equity_opening_full_name = equity_name + "." + equity_opening_name
     logger.info(f"Looking up --{equity_opening_full_name}--")
     equity_account = root_account.lookup_by_full_name(equity_opening_full_name)
