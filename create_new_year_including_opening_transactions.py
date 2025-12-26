@@ -50,7 +50,15 @@ def get_account_balances(book):
     return balances
 
 def prepare_new_year_file(previous_file, new_file):
-    """Create the new year's file by copying the previous year's file and deleting all transactions."""
+    """Create the new year's file by copying the previous year's file and deleting all transactions.
+
+    Args:
+        previous_file: Path to previous year's gnucash file.
+        new_file: Path to new year's gnucash file.
+
+    Returns:
+        The gnucash.Session object for the new year's file.
+    """
 
     # Copy the previous year's file, do _not_ overwrite existing file
     if os.path.exists(new_file):
@@ -65,17 +73,39 @@ def prepare_new_year_file(previous_file, new_file):
 
     # Delete all transactions
     logger.debug('Deleting all transactions.')
+
     root_account = book_new.get_root_account()
     accounts = root_account.get_descendants()
 
+    # For bookkeeping to avoid trying to delete already deleted objects
+    seen_transaction_guids = set()
+
     for account in accounts:
-        splits = account.GetSplitList()
+        # evaluate the iterator, because we will change the objects the iterator produces
+        splits = list(account.GetSplitList())
+
         for split in splits:
             transaction = split.parent
-            if transaction == None:
-                logger.warning(f"Split without parent transaction found in account {account.get_full_name()}.")
+
+            if transaction is None:
+                logger.warning(
+                    f"Split without parent transaction found in account {account.get_full_name()}."
+                )
+                # ... user should clean this up by hand
                 continue
-            transaction.Destroy()
+
+            guid = transaction.GetGUID()
+
+            if guid in seen_transaction_guids:
+                # This transaction was already destroyed via another account's split
+                continue
+
+            seen_transaction_guids.add(guid)
+
+            try:
+                transaction.Destroy()
+            except Exception as e:
+                logger.error(f"Error destroying transaction {guid}: {e}")
 
     return session_new
 
