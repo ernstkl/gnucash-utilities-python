@@ -6,9 +6,9 @@ Prerequisites:
 
 For Ubuntu: `apt-get install gnucash python3-gnucash python3-loguru`
 
-Other setups: you are on your own.
-
-Note the python API will not work without a native gnucash installation
+Note the python API will not work without a native gnucash
+installation. So working with an uv environment does not seem to be
+possible right now.
 
 ## Creating a new year's GnuCash file from the previous year's file
 
